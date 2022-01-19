@@ -1,0 +1,40 @@
+#!groovy
+
+
+properties([disableConcurrentBuilds()])
+pipeline {
+    environment {
+        registryCredential = 'DockerHub'
+        registry = 'wefourweb/vr-core'
+    }
+    triggers {
+		bitbucketPush()
+	}
+	options {
+    		buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '10'))
+    		timestamps()
+    	}
+      agent any
+
+        stages{
+            stage('building image'){
+                steps{
+                    withCredentials([usernamePassword(credentialsId: 'DockerHub', usernameVariable: 'DOCKER_HUB_LOGIN', passwordVariable: 'DOCKER_HUB_PASSWORD')]){
+                    sh '''#!/bin/bash -e
+                    docker login -u $DOCKER_HUB_LOGIN -p $DOCKER_HUB_PASSWORD
+                    docker build -t wefourweb/vr-core:latest .
+                    docker push wefourweb/vr-core:latest
+                    '''
+                    }
+                }
+            }
+            stage('install'){
+                steps{
+                    withCredentials([usernamePassword(credentialsId: 'DockerHub', usernameVariable: 'DOCKER_HUB_LOGIN', passwordVariable: 'DOCKER_HUB_PASSWORD')]){
+                    sh 'ssh bacula@94.232.28.151 \'cd ~/code/core && ./start.sh $DOCKER_HUB_LOGIN $DOCKER_HUB_PASSWORD\'' 
+                }
+                    }
+            }
+        }
+}
+
